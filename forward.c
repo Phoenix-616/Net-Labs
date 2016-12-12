@@ -112,10 +112,14 @@ int main(int argc, char *argv[])
 			
 		if (transfer)
 		{
-			FD_SET(server_fd, &sel_set);
-			FD_SET(client_fd, &sel_set);
-			FD_SET(server_fd, &sel_set2);
-			FD_SET(client_fd, &sel_set2);
+			if (cl_got < BUF_SIZE)
+				FD_SET(server_fd, &sel_set);
+			if (ser_got < BUF_SIZE)
+				FD_SET(client_fd, &sel_set);
+			if (ser_read < ser_got)
+				FD_SET(server_fd, &sel_set2);
+			if (cl_read < cl_got)
+				FD_SET(client_fd, &sel_set2);
 			ndfs = ((client_fd > server_fd) ? (client_fd) : (server_fd)) + 1;
 		}
 		else
@@ -197,62 +201,6 @@ int main(int argc, char *argv[])
 			transfer = 1;
 			fprintf(stderr, "Connection established\n");
 		}
-		/*
-		if ((ret > 0) && (transfer))
-		{
-			if (FD_ISSET(client_fd, &sel_set) && FD_ISSET(server_fd, &sel_set2))
-			{
-				fprintf(stderr, "DATA FROM CLIENT\n");
-				ret = recv(client_fd, buf, BUF_SIZE, 0);
-				if (ret < 0)
-				{
-					if (!((errno == EAGAIN) || (errno == EWOULDBLOCK)))
-						perror("recv from client failed");
-				}
-				else
-				{
-					if (ret == 0)
-					{
-						fprintf(stderr, "client closed connection\n");
-						exit(0);
-					}
-					fprintf(stderr, "DATA TO SERVER\n");
-					ret = send(server_fd, buf, ret, 0);
-					if (ret < 0)
-					{
-						perror("Send to server failed");
-					}
-				}
-			}
-			if (FD_ISSET(server_fd, &sel_set) && FD_ISSET(client_fd, &sel_set2))
-			{
-				fprintf(stderr, "DATA FROM SERVER\n");
-				ret = recv(server_fd, buf, BUF_SIZE, 0);
-				if (ret < 0)
-				{
-					if (!((errno == EAGAIN) || (errno == EWOULDBLOCK)))
-						perror("recv from server failed");
-				}
-				else
-				{
-					if (ret == 0)
-					{
-						fprintf(stderr, "server closed connection\n");
-						exit(0);
-					}
-					if (transfer)
-					{
-						fprintf(stderr, "DATA TO CLIENT\n");
-						ret = send(client_fd, buf, ret, 0);
-						if (ret < 0)
-						{
-							perror("Send to client failed");
-						}
-					}
-				}
-			}
-		}
-		*/
 		
 		if ((ret > 0) && (transfer))
 		{
