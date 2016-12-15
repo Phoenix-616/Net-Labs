@@ -50,6 +50,7 @@ typedef struct message
 
 std::vector<neighbor> nods;
 std::vector<message> msgs;
+std::vector<unsigned int> gotten;
 bool root = true;
 int std_offset = sizeof(unsigned int) + sizeof(char);
 bool work_end = false;
@@ -116,7 +117,6 @@ unsigned int msgConnectTo(int ip, int port)								//Сообщение-кома
 	memcpy((new_msg.buf + 1), &new_msg.id, sizeof(new_msg.id));
 	memcpy((new_msg.buf + std_offset), &ip, sizeof(ip));
 	memcpy((new_msg.buf + std_offset + sizeof(int)), &port, sizeof(port));
-	//fprintf(stderr, "Connect to %d in msg\n", *((int *)(new_msg.buf + std_offset + sizeof(int))));
 	msgs.push_back(new_msg);
 	return new_msg.id;
 }
@@ -184,7 +184,6 @@ neighbor createNod(int ip, int port, bool parent)
 
 void pre_del_nod(int num)
 {
-	fprintf(stderr, "Pre del nod %d have %d\n", nods[num].addr.sin_port, nods[num].need_send.size());
 	for (int i = 0; i < nods[num].need_send.size(); i++)
 	{
 		for (int j = 0; j < msgs.size(); j++)
@@ -192,7 +191,6 @@ void pre_del_nod(int num)
 			if (nods[num].need_send[i].id == msgs[j].id)
 			{
 				msgs[j].non_send--;
-				fprintf(stderr, "DO non_send-- %d\n", nods[num].addr.sin_port);
 			}
 		}
 	}
@@ -216,7 +214,6 @@ int main(int argc, char * argv[])
 	}
 	
 	loss = atoi(argv[1]);
-	fprintf(stderr, "loss = %d\n", loss);
 	
 	nickname = (char *)calloc(sizeof(char), (8 < strlen(argv[3]))?(9):(strlen(argv[3]) + 1));
 	if (!nickname)
@@ -312,10 +309,6 @@ int main(int argc, char * argv[])
 		if (work_end && (nods.size() == 0))
 		{
 			fprintf(stderr, "Root == %d msgs == %d\n", root, msgs.size());
-			for (int i = 0; i < msgs.size(); i++)
-			{
-				fprintf(stderr, "msg %d non send %d\n", *msgs[i].buf, msgs[i].non_send);
-			}
 			exit(0);
 		}
 		
@@ -363,7 +356,7 @@ int main(int argc, char * argv[])
 		{
 			if (FD_ISSET(sockFD, &readSet))
 			{
-				//fprintf(stderr, "Got smth\n");
+				fprintf(stderr, "Got smth\n");
 				if (inc_msg.buf != NULL)
 				{
 					addrlen = sizeof(addr);
@@ -431,8 +424,6 @@ int main(int argc, char * argv[])
 								memcpy(&ip, (inc_msg.buf + std_offset), sizeof(ip));
 								memcpy(&port, (inc_msg.buf + std_offset + sizeof(int)), sizeof(port));
 								
-								//fprintf(stderr, "\nport %d\n", port);
-								
 								fprintf(stderr, "CONNECT_TO!!! %d\n", port);
 								
 								neighbor new_nod = createNod(ip, port, false);//////////////////////////ACHTUNG!!!
@@ -451,7 +442,6 @@ int main(int argc, char * argv[])
 								fprintf(stderr, "GOT_MSG!!! %d\n", addr.sin_port);
 								unsigned int id;
 								memcpy(&id, (inc_msg.buf + 1), sizeof(id));
-								fprintf(stderr, "got msg id = %d\n", id);
 								bool memorial_to_my_stupidity = false;
 								for (int i = 0; i < msgs.size(); i++)
 								{
@@ -464,7 +454,6 @@ int main(int argc, char * argv[])
 										}
 										if ((*msgs[i].buf == CONNECT_TO) || (*msgs[i].buf == DISCONNECT))
 										{
-											fprintf(stderr, "Deleting nod %d\n", nods[sender].addr.sin_port);
 											pre_del_nod(sender);
 											nods.erase(nods.begin() + sender);
 										}
@@ -481,7 +470,6 @@ int main(int argc, char * argv[])
 								{
 									if (nods[sender].need_send[i].id == id)
 									{
-										fprintf(stderr, "ERASE 1 %d by %d\n", id, nods[sender].addr.sin_port);
 										nods[sender].need_send.erase(nods[sender].need_send.begin() + i);
 										break;
 									}
@@ -493,7 +481,25 @@ int main(int argc, char * argv[])
 								if ((sender == -1) || work_end) break;
 								fprintf(stderr, "MSG!!! %d\n", addr.sin_port);
 								
-								fprintf(stderr, "\n%s\n\n", (inc_msg.buf + std_offset));
+								bool there = false;
+								
+								for (int i = 0; i < gotten.size(); i++)
+								{
+									if (gotten[i] == *(unsigned int *)(inc_msg.buf + 1))
+									{
+										there = true;
+										break;
+									}
+								}
+								if (!there)
+								{
+									fprintf(stderr, "\n%s\n\n", (inc_msg.buf + std_offset));
+									if (gotten.size() > 40)
+									{
+										gotten.erase(gotten.begin());
+									}
+									gotten.push_back(*(unsigned int *)(inc_msg.buf + 1));
+								}
 								
 								message resend;
 								resend.buf = (char *)calloc(sizeof(char), MSG_SIZE);
@@ -553,12 +559,6 @@ int main(int argc, char * argv[])
 			
 			if (FD_ISSET(0, &readSet))
 			{
-				
-				/*fprintf(stderr, "ROOT = %d\n", root);
-				for (int i = 0; i < nods.size(); i++)
-				{
-					fprintf(stderr, "Nod #%d port = %d is_father = %d\n", i, nods[i].addr.sin_port, nods[i].is_father);
-				}*/
 				int te;
 				te = read(0, (str + nicklen + 1), (MSG_SIZE - std_offset - nicklen - 1));
 				if (te > 0)
@@ -596,7 +596,6 @@ int main(int argc, char * argv[])
 					{
 						if (nods[j].need_send[k].id == 0)
 						{
-							fprintf(stderr, "ERASE 2 %d\n", nods[j].need_send[k].id);
 							nods[j].need_send.erase(nods[j].need_send.begin() + k);
 							k--;
 							continue;
@@ -611,7 +610,6 @@ int main(int argc, char * argv[])
 							nods[j].need_send[k].last_attempt = curTime;
 							if (*msgs[i].buf == GOT_MSG)
 							{
-								fprintf(stderr, "ERASE 3 %d\n", nods[j].need_send[k]);
 								nods[j].need_send.erase(nods[j].need_send.begin() + k);
 								
 								free(msgs[i].buf);
@@ -647,7 +645,6 @@ int main(int argc, char * argv[])
 								}
 								else
 								{
-									fprintf(stderr, "ERASE 4 %d\n", nods[j].need_send[k]);
 									nods[j].need_send.erase(nods[j].need_send.begin() + k);
 									k--;
 								}
